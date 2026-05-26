@@ -61,8 +61,8 @@ function loadOpenCodeConfig(): OpenCodeConfig | null {
   }
 }
 
-function toEnvVarName(providerName: string): string {
-  return `${providerName.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`
+function isImageModel(m: OpenCodeModel): boolean {
+  return !!m.modalities?.input?.includes("image")
 }
 
 export default function (pi: ExtensionAPI) {
@@ -72,21 +72,14 @@ export default function (pi: ExtensionAPI) {
   for (const [providerName, provider] of Object.entries(config.provider)) {
     if (!provider.options?.baseURL || !provider.models) continue
 
-    const apiKey = provider.options.apiKey ?? ""
-    if (apiKey) {
-      const envVar = toEnvVarName(providerName)
-      if (!process.env[envVar]) {
-        process.env[envVar] = apiKey
-      }
-    }
-
     const models = Object.values(provider.models).map((m) => ({
       id: m.id,
       name: m.name,
       reasoning: !!m.interleaved,
-      input: (m.modalities?.input?.includes("image")
-        ? ["text", "image"]
-        : ["text"]) as ("text" | "image")[],
+      input: (isImageModel(m) ? ["text", "image"] : ["text"]) as (
+        | "text"
+        | "image"
+      )[],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: m.limit?.context ?? 128000,
       maxTokens: m.limit?.output ?? 8192,
@@ -95,7 +88,7 @@ export default function (pi: ExtensionAPI) {
     pi.registerProvider(providerName, {
       name: provider.name ?? providerName,
       baseUrl: provider.options.baseURL,
-      apiKey: envVar,
+      apiKey: provider.options.apiKey ?? "",
       api: "openai-completions",
       models,
     })
