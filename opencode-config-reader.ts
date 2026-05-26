@@ -93,17 +93,8 @@ function isImageModel(m: OpenCodeModel): boolean {
 }
 
 export default function (pi: ExtensionAPI) {
-  const configPath = resolveConfigPath()
-  console.error(`[opencode-config-reader] config path: ${configPath ?? "NOT FOUND"}`)
-
   const config = loadOpenCodeConfig()
-  if (!config?.provider) {
-    console.error("[opencode-config-reader] no providers found in config")
-    return
-  }
-
-  const providerNames = Object.keys(config.provider)
-  console.error(`[opencode-config-reader] providers: ${providerNames.join(", ")}`)
+  if (!config?.provider) return
 
   for (const [providerName, provider] of Object.entries(config.provider)) {
     if (!provider.options?.baseURL || !provider.models) continue
@@ -120,8 +111,6 @@ export default function (pi: ExtensionAPI) {
       contextWindow: m.limit?.context ?? 128000,
       maxTokens: m.limit?.output ?? 8192,
     }))
-
-    console.error(`[opencode-config-reader] registering ${providerName}: ${models.length} models, apiKey=${provider.options.apiKey ? "set" : "missing"}`)
 
     pi.registerProvider(providerName, {
       name: provider.name ?? providerName,
