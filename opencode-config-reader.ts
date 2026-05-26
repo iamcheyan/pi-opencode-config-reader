@@ -9,6 +9,7 @@ interface OpenCodeModel {
   tool_call?: boolean
   interleaved?: { field: string }
   limit?: { context?: number; output?: number }
+  modalities?: { input?: string[]; output?: string[] }
 }
 
 interface OpenCodeProvider {
@@ -25,23 +26,18 @@ interface OpenCodeConfig {
 function resolveConfigPath(): string | null {
   const candidates: string[] = []
 
-  // Project-level: ./opencode.json or ./opencode.jsonc
   candidates.push(join(process.cwd(), "opencode.json"))
   candidates.push(join(process.cwd(), "opencode.jsonc"))
 
-  // XDG_CONFIG_HOME
   const xdgConfig = process.env.XDG_CONFIG_HOME
   if (xdgConfig) {
     candidates.push(join(xdgConfig, "opencode", "opencode.json"))
     candidates.push(join(xdgConfig, "opencode", "opencode.jsonc"))
   }
 
-  // Default ~/.config/opencode/
   const home = homedir()
   candidates.push(join(home, ".config", "opencode", "opencode.json"))
   candidates.push(join(home, ".config", "opencode", "opencode.jsonc"))
-
-  // Legacy ~/.opencode/config.json
   candidates.push(join(home, ".opencode", "config.json"))
 
   for (const p of candidates) {
@@ -55,7 +51,6 @@ function loadOpenCodeConfig(): OpenCodeConfig | null {
   if (!configPath) return null
   try {
     const content = readFileSync(configPath, "utf-8")
-    // Strip JSONC comments and trailing commas
     const cleaned = content
       .replace(/\/\/.*$/gm, "")
       .replace(/\/\*[\s\S]*?\*\//g, "")
@@ -66,11 +61,8 @@ function loadOpenCodeConfig(): OpenCodeConfig | null {
   }
 }
 
-function isImageModel(m: OpenCodeModel): boolean {
-  const modalities = (m as Record<string, unknown>).modalities as
-    | { input?: string[] }
-    | undefined
-  return !!modalities?.input?.includes("image")
+function toEnvVarName(providerName: string): string {
+  return `${providerName.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_API_KEY`
 }
 
 export default function (pi: ExtensionAPI) {
@@ -80,14 +72,21 @@ export default function (pi: ExtensionAPI) {
   for (const [providerName, provider] of Object.entries(config.provider)) {
     if (!provider.options?.baseURL || !provider.models) continue
 
+    const apiKey = provider.options.apiKey ?? ""
+    if (apiKey) {
+      const envVar = toEnvVarName(providerName)
+      if (!process.env[envVar]) {
+        process.env[envVar] = apiKey
+      }
+    }
+
     const models = Object.values(provider.models).map((m) => ({
       id: m.id,
       name: m.name,
       reasoning: !!m.interleaved,
-      input: (isImageModel(m) ? ["text", "image"] : ["text"]) as (
-        | "text"
-        | "image"
-      )[],
+      input: (m.modalities?.input?.includes("image")
+        ? ["text", "image"]
+        : ["text"]) as ("text" | "image")[],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: m.limit?.context ?? 128000,
       maxTokens: m.limit?.output ?? 8192,
@@ -96,7 +95,7 @@ export default function (pi: ExtensionAPI) {
     pi.registerProvider(providerName, {
       name: provider.name ?? providerName,
       baseUrl: provider.options.baseURL,
-      apiKey: provider.options.apiKey ?? "",
+      apiKey: envVar,
       api: "openai-completions",
       models,
     })

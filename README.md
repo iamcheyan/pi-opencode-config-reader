@@ -86,12 +86,23 @@ If your `~/.config/opencode/opencode.json` looks like this:
 
 The extension will register a `deepseek` provider in pi with the `deepseek-v4-pro` model ready to use.
 
+## How It Works
+
+The extension reads your OpenCode config and:
+
+1. Sets environment variables for each provider's API key (e.g., `DEEPSEEK_API_KEY`)
+2. Registers each provider with pi using `pi.registerProvider()`
+3. Passes the env var name as `apiKey`, so pi's auth system resolves it automatically
+
+This avoids conflicts with pi's built-in providers and ensures API keys are found through pi's standard auth resolution pipeline.
+
 ## Notes
 
 - All providers are registered with `api: "openai-completions"`. This works for most OpenAI-compatible APIs. If a provider uses a different API format, you may need a custom `streamSimple` implementation.
 - `cost` fields are set to `0` since OpenCode config doesn't include pricing info.
 - The extension reads config at startup. If you change your OpenCode config, restart pi or use `/reload`.
 - Built-in pi providers (like `anthropic`, `openai`, `google`) are not affected — only custom providers from your OpenCode config are registered.
+- Environment variables are set as `{PROVIDER}_API_KEY` (e.g., `DEEPSEEK_API_KEY`, `KIMI_API_KEY`). If the env var already exists, it won't be overwritten.
 
 ## License
 
