@@ -46,15 +46,42 @@ function resolveConfigPath(): string | null {
   return null
 }
 
+function stripJsoncComments(json: string): string {
+  let result = ""
+  let i = 0
+  while (i < json.length) {
+    if (json[i] === '"') {
+      let j = i + 1
+      while (j < json.length) {
+        if (json[j] === "\\") {
+          j += 2
+          continue
+        }
+        if (json[j] === '"') break
+        j++
+      }
+      result += json.slice(i, j + 1)
+      i = j + 1
+    } else if (json[i] === "/" && json[i + 1] === "/") {
+      while (i < json.length && json[i] !== "\n") i++
+    } else if (json[i] === "/" && json[i + 1] === "*") {
+      i += 2
+      while (i < json.length - 1 && !(json[i] === "*" && json[i + 1] === "/")) i++
+      i += 2
+    } else {
+      result += json[i]
+      i++
+    }
+  }
+  return result
+}
+
 function loadOpenCodeConfig(): OpenCodeConfig | null {
   const configPath = resolveConfigPath()
   if (!configPath) return null
   try {
     const content = readFileSync(configPath, "utf-8")
-    const cleaned = content
-      .replace(/\/\/.*$/gm, "")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/,\s*([\]}])/g, "$1")
+    const cleaned = stripJsoncComments(content).replace(/,\s*([\]}])/g, "$1")
     return JSON.parse(cleaned)
   } catch {
     return null
@@ -66,8 +93,17 @@ function isImageModel(m: OpenCodeModel): boolean {
 }
 
 export default function (pi: ExtensionAPI) {
+  const configPath = resolveConfigPath()
+  console.error(`[opencode-config-reader] config path: ${configPath ?? "NOT FOUND"}`)
+
   const config = loadOpenCodeConfig()
-  if (!config?.provider) return
+  if (!config?.provider) {
+    console.error("[opencode-config-reader] no providers found in config")
+    return
+  }
+
+  const providerNames = Object.keys(config.provider)
+  console.error(`[opencode-config-reader] providers: ${providerNames.join(", ")}`)
 
   for (const [providerName, provider] of Object.entries(config.provider)) {
     if (!provider.options?.baseURL || !provider.models) continue
@@ -84,6 +120,8 @@ export default function (pi: ExtensionAPI) {
       contextWindow: m.limit?.context ?? 128000,
       maxTokens: m.limit?.output ?? 8192,
     }))
+
+    console.error(`[opencode-config-reader] registering ${providerName}: ${models.length} models, apiKey=${provider.options.apiKey ? "set" : "missing"}`)
 
     pi.registerProvider(providerName, {
       name: provider.name ?? providerName,
