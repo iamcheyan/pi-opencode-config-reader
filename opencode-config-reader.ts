@@ -92,6 +92,17 @@ function isImageModel(m: OpenCodeModel): boolean {
   return !!m.modalities?.input?.includes("image")
 }
 
+function mapApiType(opencodeApi?: string): string {
+  switch (opencodeApi) {
+    case "anthropic":
+      return "anthropic-messages"
+    case "openai-responses":
+      return "openai-responses"
+    default:
+      return "openai-completions"
+  }
+}
+
 export default function (pi: ExtensionAPI) {
   const config = loadOpenCodeConfig()
   if (!config?.provider) return
@@ -116,7 +127,7 @@ export default function (pi: ExtensionAPI) {
       name: provider.name ?? providerName,
       baseUrl: provider.options.baseURL,
       apiKey: provider.options.apiKey ?? "",
-      api: "openai-completions",
+      api: mapApiType(provider.api),
       models,
     })
   }
