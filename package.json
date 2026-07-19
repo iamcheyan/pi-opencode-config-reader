@@ -1,0 +1,10 @@
+{
+  "name": "pi-opencode-config-reader",
+  "version": "1.0.0",
+  "description": "Pi extension that reads OpenCode config and registers all custom providers as pi providers",
+  "keywords": ["pi-package"],
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./opencode-config-reader.ts"]
+  }
+}
